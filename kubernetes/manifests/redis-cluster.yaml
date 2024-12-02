@@ -1,0 +1,23 @@
+apiVersion: redis.redis.opstreelabs.in/v1beta1
+kind: RedisCluster
+metadata:
+  name: surferseo-redis
+spec:
+  clusterSize: 3
+  persistentVolume:
+    enabled: true
+    storageClass: "standard"
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  monitoring:
+    enabled: true
+    prometheusRule: true
