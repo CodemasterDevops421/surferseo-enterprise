@@ -1,0 +1,60 @@
+{
+  "title": "SurferSEO Document Processor",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "mode": {
+      "title": "Processing Mode",
+      "type": "string",
+      "description": "Single document or batch processing",
+      "enum": ["single", "batch"],
+      "default": "single"
+    },
+    "documentId": {
+      "title": "Document ID",
+      "type": "string",
+      "description": "SurferSEO document ID to process"
+    },
+    "destinationFolder": {
+      "title": "Google Drive Folder ID",
+      "type": "string",
+      "description": "Destination folder in Google Drive"
+    },
+    "documents": {
+      "title": "Document List",
+      "type": "array",
+      "description": "List of documents for batch processing",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Document ID"
+          },
+          "folder": {
+            "type": "string",
+            "description": "Destination folder ID"
+          }
+        },
+        "required": ["id", "folder"]
+      }
+    },
+    "rateLimiting": {
+      "title": "Rate Limiting",
+      "type": "object",
+      "properties": {
+        "maxConcurrent": {
+          "type": "integer",
+          "description": "Maximum concurrent requests",
+          "default": 2
+        },
+        "requestsPerMinute": {
+          "type": "integer",
+          "description": "Maximum requests per minute",
+          "default": 30
+        }
+      }
+    }
+  },
+  "required": ["mode"]
+}
