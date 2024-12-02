@@ -1,0 +1,53 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    - run: npm ci
+    - run: npm test
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  security-scan:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+  deploy:
+    needs: [test-and-build, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+    - name: Deploy to Kubernetes
+      run: |
+        echo "$KUBE_CONFIG" > kubeconfig.yaml
+        export KUBECONFIG=kubeconfig.yaml
+        kubectl set image deployment/surferseo-app surferseo=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        kubectl rollout status deployment/surferseo-app
