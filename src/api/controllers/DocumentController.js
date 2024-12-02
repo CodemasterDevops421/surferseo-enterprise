@@ -1,75 +1,92 @@
 const SurferAPI = require('../../core/SurferAPI');
 const GoogleDriveUploader = require('../../core/GoogleDriveUploader');
+const { documentQueue } = require('../../queues');
 const metrics = require('../../monitoring/metrics');
-const logger = require('../../utils/logger');
 
 class DocumentController {
-  constructor(user) {
-    this.surferApi = new SurferAPI(process.env.SURFER_API_KEY);
-    this.driveUploader = new GoogleDriveUploader(require('../../config/google-credentials.json'));
-    this.user = user;
-  }
+  static async downloadDocument(req, res) {
+    const { documentId } = req.body;
+    const startTime = Date.now();
 
-  async getDocument(id) {
-    const timer = metrics.documentProcessingDuration.startTimer();
     try {
-      logger.info(`Fetching document ${id} for user ${this.user.id}`);
-      const document = await this.surferApi.getDocument(id);
-      timer({ operation: 'get_document' });
-      return document;
+      const surferApi = new SurferAPI(process.env.SURFER_API_KEY);
+      const document = await surferApi.downloadDocument(documentId);
+
+      metrics.documentProcessingDuration.observe({
+        operation: 'download'
+      }, (Date.now() - startTime) / 1000);
+
+      res.json({
+        status: 'success',
+        documentId,
+        size: document.length
+      });
     } catch (error) {
-      logger.error(`Error fetching document ${id}:`, error);
-      throw error;
+      console.error('Download error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
     }
   }
 
-  async downloadDocument(id) {
-    const timer = metrics.documentProcessingDuration.startTimer();
-    try {
-      logger.info(`Downloading document ${id} for user ${this.user.id}`);
-      const stream = await this.surferApi.downloadDocument(id);
-      timer({ operation: 'download_document' });
-      return stream;
-    } catch (error) {
-      logger.error(`Error downloading document ${id}:`, error);
-      throw error;
-    }
-  }
+  static async processDocument(req, res) {
+    const { documentId, destination } = req.body;
 
-  async exportToGoogleDrive(id, options = {}) {
-    const timer = metrics.documentProcessingDuration.startTimer();
     try {
-      logger.info(`Exporting document ${id} to Google Drive for user ${this.user.id}`);
-      
-      // Get document metadata
-      const metadata = await this.surferApi.getDocument(id);
-      
-      // Download document
-      const documentStream = await this.surferApi.downloadDocument(id);
-      
-      // Upload to Google Drive
-      const uploadResult = await this.driveUploader.uploadFile(
-        documentStream,
-        options.fileName || `${metadata.title}.pdf`,
-        {
-          metadata: {
-            description: `Exported from SurferSEO - Document ID: ${id}`,
-            ...options.metadata
-          }
+      // Add to processing queue
+      const job = await documentQueue.add('processDocument', {
+        documentId,
+        destination,
+        userId: req.user.id
+      }, {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000
         }
-      );
+      });
 
-      timer({ operation: 'export_to_drive' });
-      
-      return {
-        success: true,
-        fileId: uploadResult.id,
-        webViewLink: uploadResult.webViewLink,
-        fileName: uploadResult.name
-      };
+      res.json({
+        status: 'queued',
+        jobId: job.id
+      });
     } catch (error) {
-      logger.error(`Error exporting document ${id} to Google Drive:`, error);
-      throw error;
+      console.error('Queue error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to queue document processing'
+      });
+    }
+  }
+
+  static async getDocumentStatus(req, res) {
+    const { id } = req.params;
+
+    try {
+      const job = await documentQueue.getJob(id);
+      if (!job) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Job not found'
+        });
+      }
+
+      const state = await job.getState();
+      const progress = job._progress;
+      const result = job.returnvalue;
+
+      res.json({
+        status: state,
+        progress,
+        result
+      });
+    } catch (error) {
+      console.error('Status check error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to get document status'
+      });
     }
   }
 }
