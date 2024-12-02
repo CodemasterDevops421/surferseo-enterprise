@@ -1,0 +1,23 @@
+{
+  "name": "surfer-seo-scraper",
+  "version": "1.0.0",
+  "buildTag": "latest",
+  "env": {
+    "SURFER_API_KEY": "@input",
+    "GOOGLE_CREDENTIALS": "@input"
+  },
+  "input": {
+    "schema": {
+      "documentId": {
+        "title": "SurferSEO Document ID",
+        "type": "string",
+        "description": "ID of the document to process"
+      },
+      "destinationFolder": {
+        "title": "Google Drive Folder ID",
+        "type": "string",
+        "description": "Destination folder ID in Google Drive"
+      }
+    }
+  }
+}
