@@ -1,0 +1,38 @@
+groups:
+- name: SurferSEO Enterprise Alerts
+  rules:
+  - alert: HighErrorRate
+    expr: rate(http_request_duration_seconds_count{status_code=~"5.."}[5m]) / rate(http_request_duration_seconds_count[5m]) > 0.05
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: High error rate detected
+      description: Error rate is above 5% for the last 5 minutes
+
+  - alert: SlowResponses
+    expr: rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]) > 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Slow response times detected
+      description: Average response time is above 1 second for the last 5 minutes
+
+  - alert: HighRateLimiting
+    expr: rate(rate_limit_hits_total{status="blocked"}[5m]) > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: High rate limiting detected
+      description: More than 100 requests/minute are being rate limited
+
+  - alert: DocumentProcessingFailures
+    expr: rate(document_processing_errors_total[5m]) > 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: Document processing failures detected
+      description: Documents are failing to process
